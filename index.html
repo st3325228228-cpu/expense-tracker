@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="每月支出追蹤器 PWA - Streamlit 應用程式外殼" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="支出追蹤器" />
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+
+  <title>每月支出追蹤器</title>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #020617;
+      --panel: #0f172a;
+      --panel-2: #111827;
+      --border: #243244;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --accent-2: #14b8a6;
+      --danger: #ef4444;
+      --shadow: 0 18px 60px rgba(0,0,0,.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+                   "Segoe UI", "Noto Sans TC", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow: hidden;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+      background: rgba(15,23,42,.94);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+      position: relative;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .brand img {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      flex: 0 0 auto;
+    }
+
+    .brand-text {
+      min-width: 0;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-subtitle {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button, .link-btn {
+      border: 1px solid var(--border);
+      color: var(--text);
+      background: #172033;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: .18s ease;
+      white-space: nowrap;
+    }
+
+    button:hover, .link-btn:hover {
+      transform: translateY(-1px);
+      border-color: #3b4d66;
+      background: #1d2a40;
+    }
+
+    .primary {
+      color: #052e16;
+      border-color: #22c55e;
+      background: #22c55e;
+    }
+
+    .primary:hover { background: #4ade80; }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(2,6,23,.45);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(34,197,94,.12);
+    }
+
+    .offline .dot {
+      background: var(--danger);
+      box-shadow: 0 0 0 4px rgba(239,68,68,.12);
+    }
+
+    .content {
+      position: relative;
+      min-height: 0;
+      background: var(--bg);
+    }
+
+    #appFrame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: none;
+      background: white;
+    }
+
+    .setup {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+      display: grid;
+      place-items: center;
+      padding: 28px 18px;
+    }
+
+    .setup-card {
+      width: min(760px, 100%);
+      background:
+        radial-gradient(circle at top right, rgba(20,184,166,.14), transparent 36%),
+        linear-gradient(160deg, rgba(15,23,42,.98), rgba(8,15,30,.98));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: clamp(24px, 4vw, 44px);
+    }
+
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 26px;
+    }
+
+    .hero img {
+      width: 78px;
+      height: 78px;
+      border-radius: 20px;
+      box-shadow: 0 12px 28px rgba(0,0,0,.24);
+    }
+
+    h1 {
+      font-size: clamp(25px, 5vw, 40px);
+      line-height: 1.05;
+      margin: 0;
+      letter-spacing: -.03em;
+    }
+
+    .lead {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.8;
+      margin: 8px 0 0;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 22px 0 26px;
+    }
+
+    .feature {
+      background: rgba(2,6,23,.45);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 13px 14px;
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .url-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--border);
+      background: #020617;
+      color: var(--text);
+      border-radius: 11px;
+      padding: 12px 13px;
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 3px rgba(20,184,166,.12);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 10px;
+    }
+
+    .error {
+      display: none;
+      margin-top: 10px;
+      color: #fecaca;
+      background: rgba(127,29,29,.25);
+      border: 1px solid rgba(239,68,68,.35);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 720px) {
+      .topbar {
+        min-height: 58px;
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+      .brand-subtitle, .status, #openExternalBtn { display: none; }
+      .toolbar { gap: 6px; }
+      button, .link-btn { padding: 8px 10px; }
+      .features { grid-template-columns: 1fr; }
+      .url-row { grid-template-columns: 1fr; }
+      .hero { align-items: flex-start; }
+      .hero img { width: 62px; height: 62px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="./icons/icon-192.png" alt="App icon" />
+        <div class="brand-text">
+          <div class="brand-title">每月支出追蹤器</div>
+          <div class="brand-subtitle">PWA × Streamlit</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div id="networkStatus" class="status">
+          <span class="dot"></span>
+          <span id="networkText">線上</span>
+        </div>
+        <button id="installBtn" class="primary" hidden>安裝 App</button>
+        <a id="openExternalBtn" class="link-btn" href="#" target="_blank" rel="noopener">另開原站</a>
+        <button id="changeUrlBtn">設定</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <iframe
+        id="appFrame"
+        title="每月支出追蹤器 Streamlit App"
+        allow="clipboard-read; clipboard-write; fullscreen"
+      ></iframe>
+
+      <section id="setupView" class="setup">
+        <div class="setup-card">
+          <div class="hero">
+            <img src="./icons/icon-192.png" alt="每月支出追蹤器" />
+            <div>
+              <h1>每月支出追蹤器</h1>
+              <p class="lead">
+                這是你的 PWA 呈現框架。首次輸入已部署的 Streamlit 網址後，
+                會記住設定並以全螢幕 App 方式載入。
+              </p>
+            </div>
+          </div>
+
+          <div class="features">
+            <div class="feature">可安裝到 Windows、Android、ChromeOS 主畫面</div>
+            <div class="feature">Service Worker 快取 PWA 外殼，離線仍可開啟框架</div>
+            <div class="feature">保留原 Streamlit 的預算、交易、圖表與匯出功能</div>
+            <div class="feature">支援 Hugging Face Spaces、Render、Streamlit Community Cloud 等 HTTPS 網址</div>
+          </div>
+
+          <label class="form-label" for="appUrl">Streamlit 部署網址</label>
+          <div class="url-row">
+            <input
+              id="appUrl"
+              type="url"
+              inputmode="url"
+              placeholder="https://your-app.streamlit.app"
+              autocomplete="url"
+            />
+            <button id="saveUrlBtn" class="primary">儲存並開啟</button>
+          </div>
+
+          <div id="urlError" class="error"></div>
+
+          <p class="hint">
+            注意：PWA 外殼可以離線啟動，但 Streamlit 本體需要伺服器連線。
+            若部署平台禁止 iframe 嵌入，可使用右上角「另開原站」。
+          </p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "monthly-expense-streamlit-url";
+    // 部署 Streamlit 後，只需要把下一行改成你的實際網址。
+    const DEFAULT_APP_URL = "YOUR_STREAMLIT_URL";
+    const frame = document.getElementById("appFrame");
+    const setupView = document.getElementById("setupView");
+    const appUrlInput = document.getElementById("appUrl");
+    const saveUrlBtn = document.getElementById("saveUrlBtn");
+    const changeUrlBtn = document.getElementById("changeUrlBtn");
+    const openExternalBtn = document.getElementById("openExternalBtn");
+    const urlError = document.getElementById("urlError");
+    const installBtn = document.getElementById("installBtn");
+    const networkStatus = document.getElementById("networkStatus");
+    const networkText = document.getElementById("networkText");
+
+    let deferredPrompt = null;
+
+    function normalizeUrl(value) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      try {
+        const url = new URL(text);
+        if (!["http:", "https:"].includes(url.protocol)) return "";
+        return url.href.replace(/\/$/, "");
+      } catch {
+        return "";
+      }
+    }
+
+    function toEmbedUrl(url) {
+      const embedded = new URL(url);
+      embedded.searchParams.set("embed", "true");
+      return embedded.href;
+    }
+
+    function showError(message) {
+      urlError.textContent = message;
+      urlError.style.display = "block";
+    }
+
+    function clearError() {
+      urlError.textContent = "";
+      urlError.style.display = "none";
+    }
+
+    function loadApp(url) {
+      const normalized = normalizeUrl(url);
+      if (!normalized) {
+        showError("請輸入完整網址，例如：https://your-app.streamlit.app");
+        return false;
+      }
+
+      clearError();
+      localStorage.setItem(STORAGE_KEY, normalized);
+      frame.src = toEmbedUrl(normalized);
+      frame.style.display = "block";
+      setupView.style.display = "none";
+      openExternalBtn.href = normalized;
+      return true;
+    }
+
+    function showSetup() {
+      const saved = localStorage.getItem(STORAGE_KEY) || "";
+      const defaultValue = normalizeUrl(DEFAULT_APP_URL) ? DEFAULT_APP_URL : "";
+      appUrlInput.value = saved || defaultValue;
+      frame.style.display = "none";
+      setupView.style.display = "grid";
+      appUrlInput.focus();
+    }
+
+    saveUrlBtn.addEventListener("click", () => loadApp(appUrlInput.value));
+    appUrlInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") loadApp(appUrlInput.value);
+    });
+
+    changeUrlBtn.addEventListener("click", showSetup);
+
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      deferredPrompt = event;
+      installBtn.hidden = false;
+    });
+
+    installBtn.addEventListener("click", async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installBtn.hidden = true;
+    });
+
+    window.addEventListener("appinstalled", () => {
+      deferredPrompt = null;
+      installBtn.hidden = true;
+    });
+
+    function updateNetworkStatus() {
+      const online = navigator.onLine;
+      networkStatus.classList.toggle("offline", !online);
+      networkText.textContent = online ? "線上" : "離線";
+    }
+
+    window.addEventListener("online", updateNetworkStatus);
+    window.addEventListener("offline", updateNetworkStatus);
+    updateNetworkStatus();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(console.error);
+      });
+    }
+
+    // 支援 ?app=https://... 直接指定 Streamlit URL
+    const params = new URLSearchParams(location.search);
+    const queryUrl = params.get("app");
+    const savedUrl = localStorage.getItem(STORAGE_KEY);
+    const defaultUrl = normalizeUrl(DEFAULT_APP_URL) ? DEFAULT_APP_URL : "";
+
+    if (queryUrl && loadApp(queryUrl)) {
+      history.replaceState({}, "", location.pathname);
+    } else if (savedUrl) {
+      loadApp(savedUrl);
+    } else if (defaultUrl) {
+      loadApp(defaultUrl);
+    } else {
+      showSetup();
+    }
+  </script>
+</body>
+</html>
