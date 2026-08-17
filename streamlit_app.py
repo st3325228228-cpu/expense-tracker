@@ -116,15 +116,23 @@ def get_worksheet(sheet_name: str, fieldnames: list[str]):
         )
 
     values = ws.get_all_values()
+
     if not values:
+        # 分頁完全是空的，直接寫入正確標題列
         ws.update(range_name="A1", values=[fieldnames])
-    else:
-        header = values[0][:len(fieldnames)]
-        if header != fieldnames:
-            raise RuntimeError(
-                f"工作表 {sheet_name!r} 欄位不符。期待 {fieldnames}，目前為 {header}。"
-            )
+        return ws
+
+    # 正規化目前的標題列（去除前後空白，補齊長度）
+    raw_header = values[0][:len(fieldnames)]
+    header = [str(h).strip() for h in raw_header]
+    header += [""] * (len(fieldnames) - len(header))
+
+    if header != fieldnames:
+        # 欄位不符時自動修正標題列，而不是讓整個 App 崩潰
+        ws.update(range_name="A1", values=[fieldnames])
+
     return ws
+
 
 
 def read_csv(sheet_name: str) -> list[dict]:
