@@ -9,7 +9,6 @@
 - [ ] PWA 檔案有 `index.html`、`manifest.json`、`sw.js`。
 - [ ] `.streamlit/config.toml` 已存在。
 - [ ] `.streamlit/secrets.toml` **沒有** commit 到 GitHub。
-- [ ] `.gitignore` 已包含 `.streamlit/secrets.toml`。
 - [ ] 執行 `python gen_icons.py` 後，`icons/` 有 6 個圖示。
 
 ## B. 建立 Google Sheet
@@ -83,8 +82,7 @@
 
 ## J. 備份與安全測試
 
-- [ ] 在 App 下載「本月 CSV」。
-- [ ] 在 App 下載「本月 Excel」。
+
 - [ ] 產生「完整資料備份 ZIP」，確認包含 `transactions.csv`、`budgets.csv`、`categories.csv`。
 - [ ] GitHub 全 repo 搜尋 `BEGIN PRIVATE KEY`，結果必須為 0（範例檔除外只含佔位文字）。
 - [ ] 若 Service Account key 曾誤上傳 GitHub，立即在 Google Cloud 刪除該 key 並重新建立。
