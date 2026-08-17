@@ -134,9 +134,9 @@ def get_worksheet(sheet_name: str, fieldnames: list[str]):
     return ws
 
 
-
+@st.cache_data(ttl=300, show_spinner=False)
 def read_csv(sheet_name: str) -> list[dict]:
-    """保留既有函式名稱，實際從 Google Sheets 讀取。"""
+    """保留既有函式名稱，實際從 Google Sheets 讀取（加上快取，避免 429 配額爆量）。"""
     fieldnames = SHEET_SCHEMAS[sheet_name]
     ws = get_worksheet(sheet_name, fieldnames)
     values = ws.get_all_values()
@@ -153,12 +153,13 @@ def read_csv(sheet_name: str) -> list[dict]:
 
 
 def write_csv(sheet_name: str, fieldnames: list[str], rows: list[dict]) -> None:
-    """保留既有函式名稱，實際整批寫回 Google Sheets。"""
+    """保留既有函式名稱，實際整批寫回 Google Sheets。寫入後清除讀取快取，確保資料即時更新。"""
     ws = get_worksheet(sheet_name, fieldnames)
     matrix = [fieldnames]
     matrix.extend([[row.get(k, "") for k in fieldnames] for row in rows])
     ws.clear()
     ws.update(range_name="A1", values=matrix, value_input_option="USER_ENTERED")
+    read_csv.clear()  # 寫入後讓快取失效，避免讀到舊資料
 
 
 def ensure_csv_files() -> None:
@@ -348,7 +349,9 @@ def remove_category(t_type: str, name: str) -> None:
     write_csv(CATEGORIES_CSV, CATEGORY_FIELDS, rows)
 
 
-ensure_csv_files()
+if "app_initialized" not in st.session_state:
+    ensure_csv_files()
+    st.session_state["app_initialized"] = True
 
 # ---------------------------------------------------------------------------
 # Sidebar
@@ -360,13 +363,13 @@ st.sidebar.title("💰 每月支出追蹤器")
 st.sidebar.markdown("---")
 
 nav_prev, nav_label, nav_next = st.sidebar.columns([1, 2, 1])
-if nav_prev.button("◀", use_container_width=True):
+if nav_prev.button("◀", width="stretch"):
     st.session_state.selected_month = shift_month(st.session_state.selected_month, -1)
 nav_label.markdown(
     f"<h4 style='text-align:center;margin-top:6px;'>{st.session_state.selected_month}</h4>",
     unsafe_allow_html=True,
 )
-if nav_next.button("▶", use_container_width=True):
+if nav_next.button("▶", width="stretch"):
     st.session_state.selected_month = shift_month(st.session_state.selected_month, 1)
 
 selected_month = st.session_state.selected_month
@@ -377,7 +380,7 @@ current_budget = get_budget(selected_month)
 new_budget = st.sidebar.number_input(
     "設定本月預算", min_value=0.0, value=float(current_budget), step=100.0, format="%.2f"
 )
-if st.sidebar.button("💾 儲存預算", use_container_width=True):
+if st.sidebar.button("💾 儲存預算", width="stretch"):
     save_budget(selected_month, new_budget)
     st.sidebar.success("預算已儲存！")
     st.rerun()
@@ -389,7 +392,7 @@ with st.sidebar.expander("🏷️ 分類管理"):
     st.caption("目前分類：" + "、".join(existing_cats))
 
     new_cat = st.text_input("新增分類名稱", key="new_cat_input")
-    if st.button("➕ 新增分類", use_container_width=True):
+    if st.button("➕ 新增分類", width="stretch"):
         if add_category(manage_type, new_cat):
             st.success(f"已新增分類「{new_cat}」")
             st.rerun()
@@ -397,7 +400,7 @@ with st.sidebar.expander("🏷️ 分類管理"):
             st.warning("分類重複或名稱空白")
 
     del_cat = st.selectbox("刪除分類", [""] + existing_cats, key="del_cat_select")
-    if st.button("🗑️ 刪除選定分類", use_container_width=True, disabled=not del_cat):
+    if st.button("🗑️ 刪除選定分類", width="stretch", disabled=not del_cat):
         remove_category(manage_type, del_cat)
         st.success(f"已刪除分類「{del_cat}」")
         st.rerun()
@@ -405,7 +408,7 @@ with st.sidebar.expander("🏷️ 分類管理"):
 st.sidebar.markdown("---")
 with st.sidebar.expander("📥 匯入資料"):
     uploaded = st.file_uploader("上傳 CSV（需含 date, transaction_type, category, item, amount）", type=["csv"])
-    if uploaded is not None and st.button("開始匯入", use_container_width=True):
+    if uploaded is not None and st.button("開始匯入", width="stretch"):
         try:
             import_df = pd.read_csv(uploaded, dtype=str)
             ok, errs = import_transactions(import_df)
@@ -422,7 +425,7 @@ with st.sidebar.expander("📤 匯出 / 備份"):
         csv_bytes = export_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button("下載本月 CSV", data=csv_bytes,
                             file_name=f"transactions_{selected_month}.csv",
-                            mime="text/csv", use_container_width=True)
+                            mime="text/csv", width="stretch")
 
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
@@ -430,11 +433,11 @@ with st.sidebar.expander("📤 匯出 / 備份"):
         st.download_button("下載本月 Excel", data=excel_buffer.getvalue(),
                             file_name=f"transactions_{selected_month}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True)
+                            width="stretch")
     else:
         st.caption("本月尚無交易資料")
 
-    if st.button("💾 產生完整資料備份 (ZIP)", use_container_width=True):
+    if st.button("💾 產生完整資料備份 (ZIP)", width="stretch"):
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             for sheet_name, fields in SHEET_SCHEMAS.items():
@@ -446,7 +449,7 @@ with st.sidebar.expander("📤 匯出 / 備份"):
                 )
         st.download_button("下載備份 ZIP", data=zip_buffer.getvalue(),
                             file_name=f"backup_{datetime.now():%Y%m%d_%H%M%S}.zip",
-                            mime="application/zip", use_container_width=True)
+                            mime="application/zip", width="stretch")
 
 # ---------------------------------------------------------------------------
 # 主畫面資料準備
@@ -533,7 +536,7 @@ with tab_overview:
                 .sort_values(ascending=False).head(5).reset_index()
             )
             top5.columns = ["項目", "金額"]
-            st.dataframe(top5.style.format({"金額": "${:,.0f}"}), use_container_width=True, hide_index=True)
+            st.dataframe(top5.style.format({"金額": "${:,.0f}"}), width="stretch", hide_index=True)
 
     with recent_col:
         st.markdown("#### 🕒 最近 5 筆交易")
@@ -542,7 +545,7 @@ with tab_overview:
         else:
             preview = month_df.head(5)[["date", "transaction_type", "category", "item", "amount"]]
             preview.columns = ["日期", "類型", "分類", "項目", "金額"]
-            st.dataframe(preview.style.format({"金額": "${:,.0f}"}), use_container_width=True, hide_index=True)
+            st.dataframe(preview.style.format({"金額": "${:,.0f}"}), width="stretch", hide_index=True)
 
 # ---- Tab 2：交易資料（新增 / 篩選 / 行內編輯）----
 with tab_manage:
@@ -561,7 +564,7 @@ with tab_manage:
             t_amount = st.number_input("金額", min_value=0.0, step=10.0, format="%.2f")
 
         t_note = st.text_area("備註", height=68)
-        submitted = st.form_submit_button("✅ 新增交易", use_container_width=True)
+        submitted = st.form_submit_button("✅ 新增交易", width="stretch")
 
         if submitted:
             errors = []
@@ -607,7 +610,7 @@ with tab_manage:
     else:
         show_cols = view_df[["date", "transaction_type", "category", "item", "amount", "payment_method", "note"]]
         show_cols.columns = ["日期", "類型", "分類", "項目", "金額", "付款方式", "備註"]
-        st.dataframe(show_cols.style.format({"金額": "${:,.0f}"}), use_container_width=True, hide_index=True)
+        st.dataframe(show_cols.style.format({"金額": "${:,.0f}"}), width="stretch", hide_index=True)
 
     st.markdown("---")
     st.subheader("📝 批次編輯（可直接改格子、加列、刪列）")
@@ -622,7 +625,7 @@ with tab_manage:
     edited = st.data_editor(
         editor_source[["id", "date", "transaction_type", "category", "item", "amount", "payment_method", "note"]],
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "id": st.column_config.NumberColumn("ID", disabled=True),
@@ -637,7 +640,7 @@ with tab_manage:
         key="transaction_editor",
     )
 
-    if st.button("💾 儲存變更", type="primary", use_container_width=True):
+    if st.button("💾 儲存變更", type="primary", width="stretch"):
         ok, msg = sync_month_transactions(selected_month, edited)
         if ok:
             st.success(msg)
@@ -657,7 +660,7 @@ with tab_charts:
             category_summary.columns = ["分類", "金額"]
             fig_pie = px.pie(category_summary, names="分類", values="金額", hole=0.4)
             fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width="stretch")
         else:
             st.caption("本月尚無支出資料")
 
@@ -668,7 +671,7 @@ with tab_charts:
             daily_summary.columns = ["日期", "金額"]
             daily_summary = daily_summary.sort_values("日期")
             fig_line = px.line(daily_summary, x="日期", y="金額", markers=True)
-            st.plotly_chart(fig_line, use_container_width=True)
+            st.plotly_chart(fig_line, width="stretch")
         else:
             st.caption("本月尚無支出資料")
 
@@ -678,16 +681,16 @@ with tab_charts:
         top10.columns = ["項目", "金額"]
         fig_bar_items = px.bar(top10, x="金額", y="項目", orientation="h")
         fig_bar_items.update_layout(yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(fig_bar_items, use_container_width=True)
+        st.plotly_chart(fig_bar_items, width="stretch")
     else:
         st.caption("本月尚無支出資料")
 
 # ---- Tab 4：歷史趨勢（近 6 個月）----
-with tab_trend:
-    st.markdown("##### 近 6 個月收支比較")
-    history_months = [shift_month(selected_month, -i) for i in range(5, -1, -1)]
-    history_rows = []
-    category_history_rows = []
+    with tab_trend:
+        st.markdown("##### 近 6 個月收支比較")
+        history_months = [shift_month(selected_month, -i) for i in range(5, -1, -1)]
+        history_rows = []
+        category_history_rows = []
 
     for m in history_months:
         m_df = get_transactions(m)
@@ -708,11 +711,11 @@ with tab_trend:
         melted, x="月份", y="金額", color="類型", barmode="group",
         color_discrete_map={"收入": "#2ecc71", "支出": "#e74c3c"},
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, width="stretch")
 
     st.dataframe(
         history_df.style.format({"收入": "${:,.0f}", "支出": "${:,.0f}"}),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
 
     st.markdown("---")
@@ -723,7 +726,7 @@ with tab_trend:
             cat_history_df, x="月份", y="金額", color="分類",
             groupnorm=None,
         )
-        st.plotly_chart(fig_area, use_container_width=True)
+        st.plotly_chart(fig_area, width="stretch")
     else:
         st.caption("近 6 個月尚無支出資料可供分析")
 
